@@ -1,0 +1,137 @@
+# ============================================
+# DEPENDÊNCIAS
+# ============================================
+node_modules/
+package-lock.json.backup
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# VARIÁVEIS DE AMBIENTE (SEGREDOS!)
+# ============================================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+
+# ============================================
+# DADOS SENSÍVEIS (LGPD!)
+# ============================================
+# Arquivos de registro (contêm dados de clientes)
+dados/
+dados/*.txt
+dados/*.json
+
+# Arquivos temporários de PDF
+uploads/*
+!uploads/.gitkeep
+
+# ============================================
+# LOGS
+# ============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log.*
+
+# ============================================
+# ARQUIVOS DO SISTEMA OPERACIONAL
+# ============================================
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# EDITORES / IDEs
+# ============================================
+# VS Code
+.vscode/
+!.vscode/settings.json.example
+!.vscode/extensions.json
+*.code-workspace
+
+# WebStorm / IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================
+# ARQUIVOS DE BUILD E CACHE
+# ============================================
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+out/
+
+# ============================================
+# TESTES
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ============================================
+# BACKUP E TEMPORÁRIOS
+# ============================================
+*.bak
+*.backup
+*.tmp
+*.temp
+*~
+
+# ============================================
+# DOCUMENTOS CONFIDENCIAIS
+# ============================================
+# PDFs de teste (podem ter dados reais)
+*.pdf
+!docs/**/*.pdf
+
+# Prints e imagens de teste
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!docs/**/*.jpg
+!README-images/**
+
+# ============================================
+# WHATSAPP-WEB.JS (se um dia usar)
+# ============================================
+.wwebjs_auth/
+.wwebjs_cache/
+
+# ============================================
+# NGROK (se um dia usar)
+# ============================================
+ngrok
+ngrok.exe
+ngrok.zip
