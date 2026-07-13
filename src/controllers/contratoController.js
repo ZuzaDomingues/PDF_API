@@ -74,21 +74,10 @@ async function enviarContrato(req, res) {
         }
 
         // === MONTAR NOME DO DOCUMENTO ===
-
-        // Gera timestamp no formato YYYYMMDD_HHMMSS
-        const agora = new Date();
-        const ano = agora.getFullYear();
-        const mes = String(agora.getMonth() + 1).padStart(2, '0');
-        const dia = String(agora.getDate()).padStart(2, '0');
-        const hora = String(agora.getHours()).padStart(2, '0');
-        const minuto = String(agora.getMinutes()).padStart(2, '0');
-        const segundo = String(agora.getSeconds()).padStart(2, '0');
-        const timestamp = `${ano}${mes}${dia}_${hora}${minuto}${segundo}`;
-
         const codigoCliente = dadosExtraidos.codigo_cliente || 'SEMCODIGO';
 
-        // Formato: CODIGO NOME ANOMESDIA_HORARIO
-        const nomeDocumento = `${codigoCliente} ${nome} ${timestamp}`;
+        // Formato: CODIGO NOME
+        const nomeDocumento = `${codigoCliente} ${nome}`;
 
         console.log(`📝 Nome do documento: ${nomeDocumento}`);
         console.log(`💳 Tipo de contrato: ${tipo.toUpperCase()}`);
