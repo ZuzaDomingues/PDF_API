@@ -1,47 +1,35 @@
 /**
- * Importações
+ * SERVIDOR - API de Integração ZapSign
  */
+
 const express = require('express');
 require('dotenv').config();
 
 const contratoRoutes = require('./routes/contratoRoutes');
+const { testarConexao } = require('./database/conexao');
+const { iniciarJob } = require('./utils/jobSincronizacao');  // 🆕
 
-/**
- * Cria a aplicação
- */
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-/**
- * Middlewares globais
- */
-app.use(express.json({ limit: '25mb' })); // Limita JSON a 25MB
+app.use(express.json({ limit: '25mb' }));
 
-/**
- * Rota de boas-vindas / documentação
- */
 app.get('/', (req, res) => {
     res.json({
         mensagem: '🚀 API de Integração ZapSign rodando!',
-        versao: '1.1.0',
+        versao: '1.3.0',
         endpoints: {
-            'POST /api/contratos/enviar': 'Envia contrato para ZapSign (extrai dados do PDF automaticamente)',
-            'POST /api/contratos/testar-extracao': 'Testa extração de dados do PDF (sem enviar)',
-            'GET /api/contratos/:token': 'Consulta status de um contrato',
-            'POST /api/contratos/:token/cancelar': 'Cancela um contrato (mantém no sistema)',
-            'DELETE /api/contratos/:token': 'Deleta um contrato (remove permanentemente)'
+            'POST /api/contratos/enviar': 'Envia contrato para ZapSign',
+            'POST /api/contratos/testar-extracao': 'Testa extração do PDF',
+            'POST /api/contratos/:token/cancelar': 'Cancela um contrato',
+            'GET /api/contratos/:token': 'Consulta status direto na ZapSign',
+            'GET /api/contratos/registro/:token': 'Consulta contrato + histórico do banco'
         }
     });
 });
 
-/**
- * Rotas da API
- */
 app.use('/api/contratos', contratoRoutes);
 
-/**
- * Middleware 404 - Rota não encontrada
- */
 app.use((req, res) => {
     res.status(404).json({
         sucesso: false,
@@ -49,9 +37,6 @@ app.use((req, res) => {
     });
 });
 
-/**
- * Tratamento de erros global
- */
 app.use((err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
@@ -68,18 +53,24 @@ app.use((err, req, res, next) => {
     console.error('❌ Erro não tratado:', err.message);
     res.status(500).json({
         sucesso: false,
-        mensagem: 'Erro interno do servidor',
+        mensagem: 'Erro interno',
         erro: err.message
     });
 });
 
-/**
- * Liga o servidor
- */
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log('\n' + '='.repeat(50));
     console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
     console.log(`📚 Documentação: http://localhost:${PORT}/`);
     console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log('='.repeat(50));
+    
+    console.log('\n📊 Testando conexão com o banco de dados...');
+    await testarConexao();
+    console.log('='.repeat(50));
+    
+    // 🆕 Inicia o job de sincronização
+    console.log('');
+    iniciarJob();
     console.log('='.repeat(50) + '\n');
 });

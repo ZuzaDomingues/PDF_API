@@ -1,11 +1,12 @@
 /**
- * Importações
+ * SERVICE DE INTEGRAÇÃO COM A ZAPSIGN
  */
+
 const axios = require('axios');
 const fs = require('fs');
 require('dotenv').config();
 
-// === VALIDAÇÃO DE VARIÁVEIS DE AMBIENTE ===
+// Validação de variáveis de ambiente
 if (!process.env.ZAPSIGN_API_URL) {
     throw new Error('❌ Variável de ambiente ZAPSIGN_API_URL não configurada. Verifique seu .env');
 }
@@ -25,13 +26,7 @@ const zapsignApi = axios.create({
 /**
  * Cria um documento na ZapSign a partir de um PDF
  */
-async function criarDocumento({
-    caminhoArquivo,
-    nomeArquivo,
-    nomeDocumento,
-    signatario,
-    configuracao
-}) {
+async function criarDocumento({ caminhoArquivo, nomeArquivo, nomeDocumento, signatario, configuracao }) {
     try {
         console.log('📤 Preparando upload para ZapSign...');
 
@@ -44,36 +39,30 @@ async function criarDocumento({
             lang: "pt-br",
             disable_signer_emails: false,
             signature_order_active: false,
-
-            // Configurações de recusa pelo signatário
             allow_refuse_signature: true,
             refuse_reason_required: false,
             disable_signer_refusal: false,
             min_refuse_reason_length: 0,
-
             signers: [montarSignatario(signatario, configuracao)]
         };
 
         console.log('📡 Enviando para ZapSign...');
         console.log(`   Documento: ${nomeDocumento}`);
         console.log(`   Signatário: ${signatario.nome} (${mascarar(signatario.email || signatario.telefone)})`);
-        console.log(`   Selfie: ${configuracao.autenticacao.require_selfie_photo ? 'SIM' : 'NÃO'}`);
-        console.log(`   Documento (RG): ${configuracao.autenticacao.require_document_photo ? 'SIM' : 'NÃO'}`);
 
         const response = await zapsignApi.post('/docs/', payload);
         const documento = response.data;
 
         console.log(`✅ Documento criado! Token: ${documento.token}`);
 
+        // Adiciona campos de assinatura
         if (configuracao.campos_assinatura && configuracao.campos_assinatura.length > 0) {
             console.log(`📝 Adicionando ${configuracao.campos_assinatura.length} campos de assinatura...`);
-
             await adicionarCamposAssinatura(
                 documento.token,
                 documento.signers[0].token,
                 configuracao.campos_assinatura
             );
-
             console.log('✅ Campos de assinatura adicionados!');
         }
 
@@ -88,8 +77,7 @@ async function criarDocumento({
 }
 
 /**
- * Monta o objeto do signatário
- * Decide os canais baseado nos dados disponíveis
+ * Monta o objeto do signatário baseado nos dados disponíveis
  */
 function montarSignatario(signatario, configuracao) {
     const temEmail = !!signatario.email;
@@ -98,18 +86,16 @@ function montarSignatario(signatario, configuracao) {
     const signatarioObj = {
         name: signatario.nome,
         lock_name: true,
-
         auth_mode: "assinaturaTela",
         require_selfie_photo: configuracao.autenticacao.require_selfie_photo,
         require_document_photo: configuracao.autenticacao.require_document_photo,
         selfie_validation_type: configuracao.autenticacao.selfie_validation_type,
-
         allow_refuse: true,
-
         send_automatic_email: false,
         send_automatic_whatsapp: false
     };
 
+    // Email
     if (temEmail) {
         signatarioObj.email = signatario.email;
         signatarioObj.lock_email = true;
@@ -120,6 +106,7 @@ function montarSignatario(signatario, configuracao) {
         signatarioObj.blank_email = true;
     }
 
+    // Telefone
     if (temTelefone) {
         signatarioObj.phone_country = "55";
         signatarioObj.phone_number = signatario.telefone;
@@ -132,6 +119,7 @@ function montarSignatario(signatario, configuracao) {
         signatarioObj.blank_phone = true;
     }
 
+    // Canal de envio
     if (temEmail) {
         signatarioObj.send_via = "email";
     } else if (temTelefone) {
@@ -155,14 +143,11 @@ async function adicionarCamposAssinatura(tokenDocumento, tokenSignatario, campos
         signer_token: tokenSignatario
     }));
 
-    const payload = { rubricas };
-
     try {
         const response = await zapsignApi.post(
             `/docs/${tokenDocumento}/place-signatures/`,
-            payload
+            { rubricas }
         );
-        console.log(`✅ ${rubricas.length} rubricas adicionadas com sucesso!`);
         return response.data;
     } catch (error) {
         console.error(`❌ Erro ao adicionar rubricas:`);
@@ -173,7 +158,7 @@ async function adicionarCamposAssinatura(tokenDocumento, tokenSignatario, campos
 }
 
 /**
- * Consulta um documento
+ * Consulta um documento na ZapSign
  */
 async function consultarDocumento(token) {
     try {
@@ -188,21 +173,12 @@ async function consultarDocumento(token) {
 }
 
 /**
- * 🚫 Cancela um documento na ZapSign
+ * Cancela um documento na ZapSign
  * Endpoint: POST /refuse/
- * O documento fica com status "recusado" e não pode mais ser assinado
- * Adiciona marca d'água "Documento recusado" no PDF
- * 
- * @param {string} token - Token do documento
- * @param {string} motivo - Motivo do cancelamento (obrigatório)
- * @param {boolean} notificarSignatarios - Se true, notifica os signatários por email
- * @returns {Promise<Object>} - Resposta da ZapSign
  */
 async function cancelarDocumento(token, motivo, notificarSignatarios = false) {
     try {
         console.log(`\n🚫 Cancelando documento ${token}...`);
-        console.log(`   Motivo: ${motivo}`);
-        console.log(`   Notificar signatários: ${notificarSignatarios ? 'SIM' : 'NÃO'}`);
 
         const payload = {
             doc_token: token,
@@ -213,36 +189,10 @@ async function cancelarDocumento(token, motivo, notificarSignatarios = false) {
         const response = await zapsignApi.post('/refuse/', payload);
 
         console.log(`✅ Documento cancelado com sucesso!`);
-        console.log(`   Status HTTP: ${response.status}`);
-        console.log(`   Resposta:`, JSON.stringify(response.data, null, 2));
-
         return response.data;
 
     } catch (error) {
         console.error('❌ Erro ao cancelar documento:');
-        console.error('   Status:', error.response?.status);
-        console.error('   Mensagem:', error.response?.data?.message || error.message);
-        console.error('   Detalhes:', JSON.stringify(error.response?.data, null, 2));
-        throw error;
-    }
-}
-
-/**
- * 🗑️ Deleta um documento na ZapSign (DELETE /docs/{token}/)
- * ATENÇÃO: Remove o documento PERMANENTEMENTE!
- * Use cancelarDocumento se quiser apenas cancelar sem remover.
- */
-async function deletarDocumento(token) {
-    try {
-        console.log(`🗑️  Deletando documento ${token}...`);
-
-        const response = await zapsignApi.delete(`/docs/${token}/`);
-
-        console.log(`✅ Documento deletado com sucesso!`);
-        return response.data || { sucesso: true };
-
-    } catch (error) {
-        console.error('❌ Erro ao deletar documento:');
         console.error('   Status:', error.response?.status);
         console.error('   Mensagem:', error.response?.data?.message || error.message);
         throw error;
@@ -258,8 +208,7 @@ function mascarar(valor) {
 
     if (valor.includes('@')) {
         const [user, domain] = valor.split('@');
-        const inicio = user.substring(0, 2);
-        return `${inicio}***@${domain}`;
+        return `${user.substring(0, 2)}***@${domain}`;
     }
 
     const inicio = valor.substring(0, 4);
@@ -270,6 +219,5 @@ function mascarar(valor) {
 module.exports = {
     criarDocumento,
     consultarDocumento,
-    cancelarDocumento,   // 🆕 POST /cancel/ - cancela mantendo no sistema
-    deletarDocumento     // 🆕 DELETE - remove permanentemente
+    cancelarDocumento
 };

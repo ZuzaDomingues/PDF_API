@@ -1,24 +1,23 @@
 /**
- * Importações
+ * ROTAS DE CONTRATOS
  */
+
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const router = express.Router();
 const contratoController = require('../controllers/contratoController');
 
-// === GARANTE QUE A PASTA UPLOADS EXISTE ===
+// Garante que a pasta uploads existe
 const UPLOADS_DIR = 'uploads';
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     console.log(`📁 Pasta "${UPLOADS_DIR}/" criada automaticamente.`);
 }
 
-// === CONFIGURAÇÃO DO MULTER ===
+// Configuração do Multer para upload de PDF
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, UPLOADS_DIR);
-    },
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => {
         const timestamp = Date.now();
         const nomeSemEspacos = file.originalname.replace(/\s+/g, '_');
@@ -42,28 +41,19 @@ const upload = multer({
 
 // === ROTAS ===
 
-// POST /api/contratos/enviar - Envia contrato para ZapSign (extrai dados do PDF automaticamente)
+// POST /api/contratos/enviar - Envia contrato para ZapSign
 router.post('/enviar', upload.single('arquivo'), contratoController.enviarContrato);
 
-// POST /api/contratos/testar-extracao - Testa apenas a extração de dados do PDF
+// POST /api/contratos/testar-extracao - Testa extração de dados do PDF
 router.post('/testar-extracao', upload.single('arquivo'), contratoController.testarExtracao);
 
-// GET /api/contratos/:token - Consulta status de um contrato
-router.get('/:token', contratoController.consultarContrato);
-
-// 🚫 POST /api/contratos/:token/cancelar - Cancela um contrato (mantém no sistema)
+// POST /api/contratos/:token/cancelar - Cancela um contrato
 router.post('/:token/cancelar', contratoController.cancelarContrato);
 
-// 🗑️ DELETE /api/contratos/:token - Deleta um contrato (remove permanentemente)
-router.delete('/:token', contratoController.deletarContrato);
-
-// GET /api/contratos/registro/listar - Lista todos os contratos gravados
-router.get('/registro/listar', contratoController.listarContratosRegistrados);
-
-// GET /api/contratos/registro/historico - Lista todo o histórico
-router.get('/registro/historico', contratoController.listarTodoHistorico);
-
-// GET /api/contratos/registro/:token - Consulta contrato + histórico
+// GET /api/contratos/registro/:token - Consulta contrato + histórico (com sincronização automática)
 router.get('/registro/:token', contratoController.consultarContratoCompleto);
+
+// GET /api/contratos/:token - Consulta status direto na ZapSign
+router.get('/:token', contratoController.consultarContrato);
 
 module.exports = router;
