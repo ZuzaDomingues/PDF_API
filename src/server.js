@@ -1,13 +1,9 @@
-/**
- * SERVIDOR - API de Integração ZapSign
- */
-
 const express = require('express');
 require('dotenv').config();
 
 const contratoRoutes = require('./routes/contratoRoutes');
 const { testarConexao } = require('./database/conexao');
-const { iniciarJob } = require('./utils/jobSincronizacao');  // 🆕
+const { iniciarJob } = require('./utils/jobSincronizacao');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -69,7 +65,6 @@ app.listen(PORT, async () => {
     await testarConexao();
     console.log('='.repeat(50));
     
-    // 🆕 Inicia o job de sincronização
     console.log('');
     iniciarJob();
     console.log('='.repeat(50) + '\n');

@@ -1,20 +1,28 @@
 /**
  * SERVICE DE INTEGRAÇÃO COM A ZAPSIGN
+ * 
+ * Toda comunicação com a API da ZapSign passa por aqui.
+ * Funções disponíveis:
+ * - criarDocumento: envia PDF + configura signatário + posiciona assinaturas
+ * - consultarDocumento: consulta status de um documento
+ * - cancelarDocumento: cancela (recusa) um documento via POST /refuse/
  */
 
 const axios = require('axios');
 const fs = require('fs');
 require('dotenv').config();
 
-// Validação de variáveis de ambiente
+// ============================================
+// VALIDAÇÃO E CONFIGURAÇÃO
+// ============================================
+
 if (!process.env.ZAPSIGN_API_URL) {
-    throw new Error('❌ Variável de ambiente ZAPSIGN_API_URL não configurada. Verifique seu .env');
+    throw new Error('❌ ZAPSIGN_API_URL não configurada no .env');
 }
 if (!process.env.ZAPSIGN_API_TOKEN) {
-    throw new Error('❌ Variável de ambiente ZAPSIGN_API_TOKEN não configurada. Verifique seu .env');
+    throw new Error('❌ ZAPSIGN_API_TOKEN não configurado no .env');
 }
 
-// Cliente HTTP configurado
 const zapsignApi = axios.create({
     baseURL: process.env.ZAPSIGN_API_URL,
     headers: {
@@ -23,8 +31,16 @@ const zapsignApi = axios.create({
     }
 });
 
+// ============================================
+// FUNÇÕES PRINCIPAIS
+// ============================================
+
 /**
- * Cria um documento na ZapSign a partir de um PDF
+ * Cria um documento na ZapSign a partir de um PDF.
+ * 
+ * 1. Monta payload com signatário e configurações
+ * 2. Envia pra ZapSign
+ * 3. Adiciona campos de assinatura (rubricas) nas posições configuradas
  */
 async function criarDocumento({ caminhoArquivo, nomeArquivo, nomeDocumento, signatario, configuracao }) {
     try {
@@ -37,26 +53,29 @@ async function criarDocumento({ caminhoArquivo, nomeArquivo, nomeDocumento, sign
             name: nomeDocumento,
             base64_pdf: arquivoBase64,
             lang: "pt-br",
-            disable_signer_emails: false,
-            signature_order_active: false,
-            allow_refuse_signature: true,
-            refuse_reason_required: false,
-            disable_signer_refusal: false,
-            min_refuse_reason_length: 0,
+            disable_signer_emails: true,                        // Não envia email automático pro cliente
+            signature_order_active: false,                      // Sem ordem de assinatura
+            allow_refuse_signature: true,                       // Permite recusar
+            refuse_reason_required: false,                      // Motivo da recusa não é obrigatório
+            disable_signer_refusal: false,                      // Não desabilita recusa
+            min_refuse_reason_length: 0,                        // Tamanho mínimo do motivo
+             date_limit_to_sign: gerarDataLimite(1),            // ⏰ Produção: 1 dia
+            //date_limit_to_sign: gerarDataLimiteMinutos(15),   // 🧪 Teste: 15 minutos
             signers: [montarSignatario(signatario, configuracao)]
         };
 
         console.log('📡 Enviando para ZapSign...');
         console.log(`   Documento: ${nomeDocumento}`);
         console.log(`   Signatário: ${signatario.nome} (${mascarar(signatario.email || signatario.telefone)})`);
+        console.log(`   Data limite: ${payload.date_limit_to_sign}`);
 
         const response = await zapsignApi.post('/docs/', payload);
         const documento = response.data;
 
         console.log(`✅ Documento criado! Token: ${documento.token}`);
 
-        // Adiciona campos de assinatura
-        if (configuracao.campos_assinatura && configuracao.campos_assinatura.length > 0) {
+        // Adiciona campos de assinatura nas posições configuradas em contratos.js
+        if (configuracao.campos_assinatura?.length > 0) {
             console.log(`📝 Adicionando ${configuracao.campos_assinatura.length} campos de assinatura...`);
             await adicionarCamposAssinatura(
                 documento.token,
@@ -77,13 +96,60 @@ async function criarDocumento({ caminhoArquivo, nomeArquivo, nomeDocumento, sign
 }
 
 /**
- * Monta o objeto do signatário baseado nos dados disponíveis
+ * Consulta um documento na ZapSign pelo token.
+ */
+async function consultarDocumento(token) {
+    try {
+        const response = await zapsignApi.get(`/docs/${token}/`);
+        return response.data;
+    } catch (error) {
+        if (error.response?.status !== 404) {
+            console.error('❌ Erro ao consultar:', error.response?.data || error.message);
+        }
+        throw error;
+    }
+}
+
+/**
+ * Cancela (recusa) um documento na ZapSign.
+ * Endpoint: POST /refuse/
+ * O documento fica com status "recusado" e marca d'água no PDF.
+ */
+async function cancelarDocumento(token, motivo, notificarSignatarios = false) {
+    try {
+        console.log(`🚫 Cancelando documento ${token}...`);
+
+        const response = await zapsignApi.post('/refuse/', {
+            doc_token: token,
+            rejected_reason: motivo,
+            notify_signer: notificarSignatarios
+        });
+
+        console.log(`✅ Documento cancelado!`);
+        return response.data;
+
+    } catch (error) {
+        console.error('❌ Erro ao cancelar:');
+        console.error('   Status:', error.response?.status);
+        console.error('   Mensagem:', error.response?.data?.message || error.message);
+        throw error;
+    }
+}
+
+// ============================================
+// FUNÇÕES AUXILIARES (uso interno)
+// ============================================
+
+/**
+ * Monta o objeto do signatário baseado nos dados disponíveis.
+ * Trava campos preenchidos (nome, email, telefone) pra não editar.
+ * Esconde campos vazios pra não confundir o cliente.
  */
 function montarSignatario(signatario, configuracao) {
     const temEmail = !!signatario.email;
     const temTelefone = !!signatario.telefone;
 
-    const signatarioObj = {
+    const obj = {
         name: signatario.nome,
         lock_name: true,
         auth_mode: "assinaturaTela",
@@ -95,42 +161,40 @@ function montarSignatario(signatario, configuracao) {
         send_automatic_whatsapp: false
     };
 
-    // Email
+    // Email: mostra e trava se tem, esconde se não tem
     if (temEmail) {
-        signatarioObj.email = signatario.email;
-        signatarioObj.lock_email = true;
-        signatarioObj.hide_email = false;
+        obj.email = signatario.email;
+        obj.lock_email = true;
+        obj.hide_email = false;
     } else {
-        signatarioObj.email = "";
-        signatarioObj.hide_email = true;
-        signatarioObj.blank_email = true;
+        obj.email = "";
+        obj.hide_email = true;
+        obj.blank_email = true;
     }
 
-    // Telefone
+    // Telefone: mostra e trava se tem, esconde se não tem
     if (temTelefone) {
-        signatarioObj.phone_country = "55";
-        signatarioObj.phone_number = signatario.telefone;
-        signatarioObj.lock_phone = true;
-        signatarioObj.hide_phone = false;
+        obj.phone_country = "55";
+        obj.phone_number = signatario.telefone;
+        obj.lock_phone = true;
+        obj.hide_phone = false;
     } else {
-        signatarioObj.phone_country = "55";
-        signatarioObj.phone_number = "";
-        signatarioObj.hide_phone = true;
-        signatarioObj.blank_phone = true;
+        obj.phone_country = "55";
+        obj.phone_number = "";
+        obj.hide_phone = true;
+        obj.blank_phone = true;
     }
 
-    // Canal de envio
-    if (temEmail) {
-        signatarioObj.send_via = "email";
-    } else if (temTelefone) {
-        signatarioObj.send_via = "whatsapp";
-    }
+    // Canal de envio (email tem prioridade)
+    if (temEmail) obj.send_via = "email";
+    else if (temTelefone) obj.send_via = "whatsapp";
 
-    return signatarioObj;
+    return obj;
 }
 
 /**
- * Adiciona campos de assinatura (rubricas) por coordenadas
+ * Adiciona campos de assinatura (rubricas) por coordenadas.
+ * As posições vêm do contratos.js.
  */
 async function adicionarCamposAssinatura(tokenDocumento, tokenSignatario, campos) {
     const rubricas = campos.map(campo => ({
@@ -150,49 +214,7 @@ async function adicionarCamposAssinatura(tokenDocumento, tokenSignatario, campos
         );
         return response.data;
     } catch (error) {
-        console.error(`❌ Erro ao adicionar rubricas:`);
-        console.error(`   Status: ${error.response?.status}`);
-        console.error(`   Mensagem: ${error.response?.data?.message || error.message}`);
-        throw error;
-    }
-}
-
-/**
- * Consulta um documento na ZapSign
- */
-async function consultarDocumento(token) {
-    try {
-        const response = await zapsignApi.get(`/docs/${token}/`);
-        return response.data;
-    } catch (error) {
-        if (error.response?.status !== 404) {
-            console.error('❌ Erro ao consultar:', error.response?.data || error.message);
-        }
-        throw error;
-    }
-}
-
-/**
- * Cancela um documento na ZapSign
- * Endpoint: POST /refuse/
- */
-async function cancelarDocumento(token, motivo, notificarSignatarios = false) {
-    try {
-        console.log(`\n🚫 Cancelando documento ${token}...`);
-
-        const payload = {
-            doc_token: token,
-            rejected_reason: motivo,
-            notify_signer: notificarSignatarios
-        };
-
-        const response = await zapsignApi.post('/refuse/', payload);
-
-        console.log(`✅ Documento cancelado com sucesso!`);
-        return response.data;
-
-    } catch (error) {
-        console.error('❌ Erro ao cancelar documento:');
+        console.error('❌ Erro ao adicionar rubricas:');
         console.error('   Status:', error.response?.status);
         console.error('   Mensagem:', error.response?.data?.message || error.message);
         throw error;
@@ -200,7 +222,9 @@ async function cancelarDocumento(token, motivo, notificarSignatarios = false) {
 }
 
 /**
- * Mascara dados sensíveis para logs (LGPD)
+ * Mascara dados sensíveis nos logs.
+ * joao@email.com → jo***@email.com
+ * 14996872275 → 1499***2275
  */
 function mascarar(valor) {
     if (!valor) return 'N/A';
@@ -211,10 +235,32 @@ function mascarar(valor) {
         return `${user.substring(0, 2)}***@${domain}`;
     }
 
-    const inicio = valor.substring(0, 4);
-    const fim = valor.substring(valor.length - 4);
-    return `${inicio}***${fim}`;
+    return `${valor.substring(0, 4)}***${valor.substring(valor.length - 4)}`;
 }
+
+/**
+ * Gera data limite pra assinar em X dias.
+ * Usado em produção.
+ */
+function gerarDataLimite(dias) {
+    const data = new Date();
+    data.setDate(data.getDate() + dias);
+    return data.toISOString();
+}
+
+/**
+ * Gera data limite pra assinar em X minutos.
+ * Usado em testes.
+ */
+function gerarDataLimiteMinutos(minutos) {
+    const data = new Date();
+    data.setMinutes(data.getMinutes() + minutos);
+    return data.toISOString();
+}
+
+// ============================================
+// EXPORTAÇÕES
+// ============================================
 
 module.exports = {
     criarDocumento,

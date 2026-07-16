@@ -1,19 +1,11 @@
-/**
- * PADRONIZAÇÃO DOS CONTRATOS
- * 
- * TODAS as regras de cada tipo de contrato.
- * Se houver a necessidade de alterar algo (posições/autenticação), deve ser alterado
- * nesse documento.
- */
-
 const CONFIGURACOES_CONTRATOS = {
     boleto: {
         nome_prefixo: "Contrato Boleto",
         
         autenticacao: {
-            require_selfie_photo: false,
-            require_document_photo: false,
-            selfie_validation_type: "none" // "none", "liveness" ou "liveness-document-match"
+            require_selfie_photo: true,
+            require_document_photo: true,
+            selfie_validation_type: "liveness" // "none", "liveness" ou "liveness-document-match"
         },
         
         campos_assinatura: [
@@ -32,9 +24,9 @@ const CONFIGURACOES_CONTRATOS = {
         nome_prefixo: "Contrato Crédito",
         
         autenticacao: {
-            require_selfie_photo: false,
-            require_document_photo: false,
-            selfie_validation_type: "none"
+            require_selfie_photo: true,
+            require_document_photo: true,
+            selfie_validation_type: "liveness" // "none", "liveness" ou "liveness-document-match"
         },
         
         campos_assinatura: [

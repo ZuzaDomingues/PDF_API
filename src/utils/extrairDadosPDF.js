@@ -1,34 +1,25 @@
-/**
- * EXTRATOR DE DADOS DE PDF - VERSÃO COMPLETA
- */
-
 const pdfParse = require('pdf-parse-fork');
 const fs = require('fs');
 
 const LABELS_CONHECIDOS = [
-    // Código do cliente
     'Código', 'Codigo', 'Código do Cliente', 'Codigo do Cliente',
     
-    // Dados pessoais
     'Nome Cliente', 'Estado Civíl', 'Estado Civil',
     'CPF/CNPJ', 'CPF', 'CNPJ',
     'Data Nascimento', 'Data de Nascimento',
     'Sexo', 'R.G.', 'RG',
     'Casa Própria', 'Casa Propria',
     
-    // Contato
     'E-mail', 'Email',
     'Telefone Residencial', 'Telefone Comercial', 'Telefone Celular',
     'WhatsApp', 'Whatsapp',
     
-    // Endereço
     'Endereço de Instalaçao', 'Endereço de Instalação',
     'Endereco de Instalacao',
     'Número', 'Numero', 'Complemento',
     'Bairro', 'Cidade', 'Estado', 'CEP',
     'Endereço Cobrança', 'Endereço de Cobrança', 'Endereco Cobranca',
     
-    // Contrato
     'Data da Contrataçao', 'Data da Contratação',
     'Nome do Vendedor', 'Data da Venda',
     'Vencimento', 'Valor Instalaçao', 'Valor da Instalaçao',
@@ -54,7 +45,6 @@ async function extrairDadosPDF(caminhoArquivo) {
             tipo_pagamento_detectado: detectarTipoPagamento(texto),
             codigo_cliente: extrairCodigoCliente(texto),
             
-            // 👤 Dados pessoais
             nome: extrairNome(texto),
             cpf_cnpj: extrairCPFouCNPJ(texto),
             rg: extrairPorLabel(texto, 'R.G.') || extrairPorLabel(texto, 'RG'),
@@ -63,7 +53,6 @@ async function extrairDadosPDF(caminhoArquivo) {
             estado_civil: extrairPorLabel(texto, 'Estado Civíl') || extrairPorLabel(texto, 'Estado Civil'),
             casa_propria: extrairPorLabel(texto, 'Casa Própria') || extrairPorLabel(texto, 'Casa Propria'),
             
-            // 📧 Contato
             email: extrairEmail(texto),
             telefone_residencial: extrairTelefonePorLabel(texto, 'Telefone Residencial'),
             telefone_comercial: extrairTelefonePorLabel(texto, 'Telefone Comercial'),
@@ -71,7 +60,6 @@ async function extrairDadosPDF(caminhoArquivo) {
             whatsapp: extrairTelefonePorLabel(texto, 'WhatsApp'),
             telefone: extrairTelefone(texto),
             
-            // 🏠 Endereço de instalação
             endereco_instalacao: {
                 logradouro: extrairPorLabel(texto, 'Endereço de Instalaçao') || extrairPorLabel(texto, 'Endereço de Instalação'),
                 numero: extrairNumeroEndereco(texto),
@@ -82,12 +70,10 @@ async function extrairDadosPDF(caminhoArquivo) {
                 cep: extrairPorLabel(texto, 'CEP')
             },
             
-            // 💰 Endereço de cobrança
             endereco_cobranca: {
                 logradouro: extrairPorLabel(texto, 'Endereço Cobrança') || extrairPorLabel(texto, 'Endereço de Cobrança')
             },
             
-            // 📋 Dados do contrato
             contrato: {
                 data_contratacao: extrairPorLabel(texto, 'Data da Contrataçao') || extrairPorLabel(texto, 'Data da Contratação'),
                 nome_vendedor: extrairPorLabel(texto, 'Nome do Vendedor'),
@@ -126,7 +112,6 @@ async function extrairDadosPDF(caminhoArquivo) {
 
 /**
  * Extrai o Código do Cliente
- * Aceita: "Código:", "Codigo:", "Código do Cliente:", etc.
  */
 function extrairCodigoCliente(texto) {
     const variacoes = [
@@ -276,13 +261,13 @@ function extrairNumeroEndereco(texto) {
  * @returns {string} - "credito" ou "boleto"
  */
 function detectarTipoPagamento(texto) {
-    // Normaliza o texto (remove acentos e deixa tudo minúsculo)
+    // Normaliza o texto removendo acentos e deixa tudo minusculo
     const textoNormalizado = texto
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
 
-    // Palavras-chave que indicam CARTÃO/CRÉDITO
+    // Palavras-chave que indicam qual tipo de pagamento é
     const indicadoresCartao = [
         'exclusivo cartao',
         'exclusivo cartão',
